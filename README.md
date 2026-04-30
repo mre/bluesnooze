@@ -76,6 +76,11 @@ The original signed release is available at
 - Added a "hide icon" menu item that can be undone by relaunching the
   app, without using the terminal.
 - Migrated from Carthage to Swift Package Manager.
+- Removed the last bits of Objective-C/C. The project no longer has a
+  bridging header; the two private `IOBluetooth` C symbols are
+  declared directly in Swift. The codebase is now pure Swift. This
+  does not change the build itself, but means contributors only need
+  to read one language.
 - Replaced
   [LaunchAtLogin-Legacy](https://github.com/sindresorhus/LaunchAtLogin-Legacy)
   with

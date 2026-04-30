@@ -42,7 +42,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         [
             NSWorkspace.willSleepNotification: #selector(onPowerDown(note:)),
             NSWorkspace.willPowerOffNotification: #selector(onPowerDown(note:)),
-            NSWorkspace.didWakeNotification: #selector(onPowerUp(note:))
+            NSWorkspace.didWakeNotification: #selector(onPowerUp(note:)),
+            NSWorkspace.screensDidWakeNotification: #selector(onPowerUp(note:))
         ].forEach { notification, sel in
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: sel, name: notification, object: nil)
         }

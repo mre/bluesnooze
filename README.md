@@ -8,7 +8,7 @@
 brew install bluesnooze
 ```
 
-Please note the latest release requires MacOS Monterey (12.0) or higher.
+Please note the latest release requires macOS Ventura (13.0) or higher.
 
 ## Enjoying Bluesnooze? ❤️
 

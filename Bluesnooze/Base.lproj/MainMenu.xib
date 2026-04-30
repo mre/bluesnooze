@@ -16,6 +16,7 @@
             <connections>
                 <outlet property="launchAtLoginMenuItem" destination="I9E-pI-lLm" id="DFX-bS-N3m"/>
                 <outlet property="restorePreviousStateMenuItem" destination="Rps-01-Wk1" id="Rps-02-Out"/>
+                <outlet property="hideIconMenuItem" destination="Hid-01-Ico" id="Hid-02-Out"/>
                 <outlet property="statusMenu" destination="AEO-aA-1fp" id="ueI-UR-7ba"/>
             </connections>
         </customObject>
@@ -32,6 +33,12 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
                         <action selector="restorePreviousStateClicked:" target="Voe-Tx-rLC" id="Rps-03-Act"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Hide icon (relaunch the app to show again)" id="Hid-01-Ico" userLabel="Hide Icon Menu Item">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="hideIconClicked:" target="Voe-Tx-rLC" id="Hid-03-Act"/>
                     </connections>
                 </menuItem>
                 <menuItem title="Quit" id="0IH-xa-Tvk">

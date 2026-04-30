@@ -1,0 +1,42 @@
+name: Close pull requests
+
+# This is a personal fork that does not accept contributions. Any pull
+# request opened against it is closed automatically with a pointer to
+# the README. See the IMPORTANT note at the top of README.md.
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment and close
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              "Thanks for your interest, but this is a personal fork that does not accept pull requests.",
+              "",
+              "Please see the note at the top of the [README](https://github.com/mre/bluesnooze#readme) for details.",
+              "",
+              "If you want a supported version, use [the upstream](https://github.com/odlp/bluesnooze) or fork this repository yourself."
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              state: "closed"
+            });

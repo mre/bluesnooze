@@ -15,6 +15,7 @@
         <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Bluesnooze" customModuleProvider="target">
             <connections>
                 <outlet property="launchAtLoginMenuItem" destination="I9E-pI-lLm" id="DFX-bS-N3m"/>
+                <outlet property="restorePreviousStateMenuItem" destination="Rps-01-Wk1" id="Rps-02-Out"/>
                 <outlet property="statusMenu" destination="AEO-aA-1fp" id="ueI-UR-7ba"/>
             </connections>
         </customObject>
@@ -25,6 +26,12 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
                         <action selector="launchAtLoginClicked:" target="Voe-Tx-rLC" id="ooK-DW-6Kn"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Restore previous Bluetooth state on wake" id="Rps-01-Wk1" userLabel="Restore Previous State Menu Item">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="restorePreviousStateClicked:" target="Voe-Tx-rLC" id="Rps-03-Act"/>
                     </connections>
                 </menuItem>
                 <menuItem title="Quit" id="0IH-xa-Tvk">

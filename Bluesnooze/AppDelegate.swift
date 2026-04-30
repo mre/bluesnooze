@@ -9,16 +9,24 @@
 import Cocoa
 import IOBluetooth
 import LaunchAtLogin
+import os.log
 
 @NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @IBOutlet weak var statusMenu: NSMenu!
     @IBOutlet weak var launchAtLoginMenuItem: NSMenuItem!
     @IBOutlet weak var restorePreviousStateMenuItem: NSMenuItem!
+    @IBOutlet weak var disconnectSelectedDevicesMenuItem: NSMenuItem!
+    @IBOutlet weak var devicesSubmenuItem: NSMenuItem!
     @IBOutlet weak var hideIconMenuItem: NSMenuItem!
 
     private var statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+    private let log = OSLog(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.oliverpeate.Bluesnooze",
+        category: "bluetooth"
+    )
 
     // Key for persisting the pre-sleep Bluetooth power state across app
     // restarts (e.g. if the app is relaunched while the Mac is asleep).
@@ -32,6 +40,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Key for the user preference controlling whether the menu bar icon
     // is hidden.
     private let hideIconKey = "hideIcon"
+
+    // Key for the user preference: when true, instead of powering the
+    // Bluetooth controller off on sleep, disconnect a user-selected set
+    // of paired devices. This lets the Mac still be woken by a Bluetooth
+    // keyboard/mouse while preventing e.g. headphones from auto-connecting.
+    private let disconnectDevicesOnSleepKey = "disconnectDevicesOnSleep"
+
+    // Key for the user preference holding the address strings of the
+    // paired devices that should be disconnected on sleep.
+    private let devicesToDisconnectKey = "devicesToDisconnectOnSleep"
+
+    // Key for the per-device pre-sleep connection state snapshot. Stored
+    // as [addressString: Bool].
+    private let previousDeviceStatesKey = "previousDeviceConnectionStates"
 
     // Distributed notification sent by a second launched instance to ask
     // the already-running instance to re-show its menu bar icon.
@@ -56,13 +78,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         initStatusItem()
         setLaunchAtLoginState()
         setRestorePreviousStateMenuState()
+        setDisconnectSelectedDevicesMenuState()
         setHideIconMenuState()
         setupNotificationHandlers()
+
+        // Hook the devices submenu so it lazily refreshes the list of
+        // paired devices each time the user opens it.
+        devicesSubmenuItem?.submenu?.delegate = self
 
         // On launch, only force Bluetooth on if the user hasn't opted in to
         // "restore previous state" behaviour. Otherwise leave whatever the
         // current state is alone -- the user might have just disabled it.
-        if !restorePreviousStateOnWake {
+        // We also skip the force-on when the user is in per-device disconnect
+        // mode, since that mode never powers the controller off in the first
+        // place.
+        if !restorePreviousStateOnWake && !disconnectDevicesOnSleep {
             setBluetooth(powerOn: true)
         }
     }
@@ -79,6 +109,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setRestorePreviousStateMenuState()
     }
 
+    @IBAction func disconnectSelectedDevicesClicked(_ sender: NSMenuItem) {
+        UserDefaults.standard.set(!disconnectDevicesOnSleep, forKey: disconnectDevicesOnSleepKey)
+        setDisconnectSelectedDevicesMenuState()
+    }
+
     @IBAction func hideIconClicked(_ sender: NSMenuItem) {
         UserDefaults.standard.set(true, forKey: hideIconKey)
         // Immediately remove the status item. To bring it back the user can
@@ -88,6 +123,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @IBAction func quitClicked(_ sender: NSMenuItem) {
         NSApplication.shared.terminate(self)
+    }
+
+    @objc func deviceMenuItemClicked(_ sender: BluetoothDeviceMenuItem) {
+        var selected = devicesToDisconnect
+        if selected.contains(sender.deviceAddressString) {
+            selected.removeAll { $0 == sender.deviceAddressString }
+        } else {
+            selected.append(sender.deviceAddressString)
+        }
+        UserDefaults.standard.set(selected, forKey: devicesToDisconnectKey)
     }
 
     // MARK: Notification handlers
@@ -117,10 +162,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let wasOn = IOBluetoothPreferenceGetControllerPowerState() != 0
         UserDefaults.standard.set(wasOn, forKey: previousPowerStateKey)
 
-        setBluetooth(powerOn: false)
+        if disconnectDevicesOnSleep {
+            // Snapshot per-device connection state, then disconnect the
+            // user-selected devices. Leaving the controller powered on means
+            // a Bluetooth keyboard/mouse can still wake the Mac.
+            let paired = pairedClassicDevices()
+            var states: [String: Bool] = [:]
+            for device in paired {
+                states[device.addressString] = device.isConnected()
+            }
+            UserDefaults.standard.set(states, forKey: previousDeviceStatesKey)
+
+            let toDisconnect = Set(devicesToDisconnect)
+            let disconnected = paired.filter { toDisconnect.contains($0.addressString) }
+            for device in disconnected {
+                disconnect(device)
+            }
+
+            // Wait briefly for the disconnects to actually take effect.
+            // Otherwise, if the Mac is woken almost immediately after going
+            // to sleep, the disconnect may complete *after* wake -- leaving
+            // the device in a stuck-disconnected state.
+            waitForDisconnect(devices: disconnected, retryInterval: 0.5, timeout: 5)
+        } else {
+            setBluetooth(powerOn: false)
+        }
     }
 
     @objc func onPowerUp(note: NSNotification) {
+        if disconnectDevicesOnSleep {
+            // Per-device mode: reconnect the devices we touched. If the user
+            // also has "restore previous state" on, only reconnect those that
+            // were actually connected before sleep.
+            let previousStates = (UserDefaults.standard.dictionary(forKey: previousDeviceStatesKey)
+                                  as? [String: Bool]) ?? [:]
+            let restore = restorePreviousStateOnWake
+            for address in devicesToDisconnect {
+                if !restore || (previousStates[address] ?? false) {
+                    connect(addressString: address)
+                }
+            }
+            return
+        }
+
         if restorePreviousStateOnWake {
             // If we have no recorded previous state (first run, or app was
             // installed while asleep), default to leaving Bluetooth off rather
@@ -146,13 +230,126 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setBluetooth(powerOn: Bool) {
+        os_log("Setting Bluetooth controller power: %{bool}d", log: log, powerOn)
         IOBluetoothPreferenceSetControllerPowerState(powerOn ? 1 : 0)
+    }
+
+    // MARK: Bluetooth devices
+
+    /// Returns paired Bluetooth Classic devices.
+    ///
+    /// `IOBluetoothDevice.pairedDevices()` has inconsistent behaviour around
+    /// BLE devices, and `closeConnection()` on a BLE-backed
+    /// `IOBluetoothDevice` is unreliable, so we filter to Classic devices
+    /// only. The trick (borrowed from upstream PR #6 / Chromium issue 630581)
+    /// is to require the standard PnP Information service record, which BLE
+    /// devices don't expose via this API.
+    private func pairedClassicDevices() -> [IOBluetoothDevice] {
+        let all = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+        let pnpUUID = IOBluetoothSDPUUID(uuid32: kBluetoothSDPUUID16ServiceClassPnPInformation.rawValue)
+        return all.filter { $0.getServiceRecord(for: pnpUUID) != nil }
+    }
+
+    private func disconnect(_ device: IOBluetoothDevice) {
+        guard device.isConnected() else { return }
+        let status = device.closeConnection()
+        os_log("Disconnect %{public}@: success=%{bool}d",
+               log: log, device.nameOrAddress ?? device.addressString, status == kIOReturnSuccess)
+    }
+
+    private func connect(addressString: String) {
+        guard let device = IOBluetoothDevice(addressString: addressString) else { return }
+        guard device.isPaired(), !device.isConnected() else { return }
+        let status = device.openConnection()
+        os_log("Connect %{public}@: success=%{bool}d",
+               log: log, device.nameOrAddress ?? addressString, status == kIOReturnSuccess)
+    }
+
+    /// Human-readable name for a Bluetooth device, or an explicit
+    /// "Unnamed device (address)" fallback when `device.name` is missing
+    /// or just echoes the address back (which `IOBluetooth` does for some
+    /// peripherals, sometimes with a different separator or case than
+    /// `addressString`).
+    static func displayName(for device: IOBluetoothDevice) -> String {
+        let address = device.addressString ?? "unknown address"
+        let addressKey = address.lowercased().filter(\.isHexDigit)
+        if let name = device.name?.trimmingCharacters(in: .whitespaces),
+           !name.isEmpty,
+           name.lowercased().filter(\.isHexDigit) != addressKey {
+            return name
+        }
+        return "Unnamed device (\(address))"
+    }
+
+    private func waitForDisconnect(devices: [IOBluetoothDevice],
+                                   retryInterval: TimeInterval,
+                                   timeout: TimeInterval) {
+        guard !devices.isEmpty else { return }
+        let deadline = Date().addingTimeInterval(timeout)
+        let interval = min(retryInterval, timeout)
+        while devices.contains(where: { $0.isConnected() }) {
+            if Date() >= deadline {
+                os_log("Timed out waiting for devices to disconnect", log: log, type: .info)
+                return
+            }
+            Thread.sleep(forTimeInterval: interval)
+        }
+    }
+
+    // MARK: Devices submenu
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === devicesSubmenuItem?.submenu else { return }
+        rebuildDevicesSubmenu(menu)
+    }
+
+    private func rebuildDevicesSubmenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        let devices = pairedClassicDevices()
+        if devices.isEmpty {
+            let empty = NSMenuItem(title: "No paired devices", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+            return
+        }
+
+        let selected = Set(devicesToDisconnect)
+        let enabled = disconnectDevicesOnSleep
+        for device in devices.sorted(by: { Self.displayName(for: $0) < Self.displayName(for: $1) }) {
+            let item = BluetoothDeviceMenuItem(
+                device: device,
+                action: #selector(deviceMenuItemClicked(_:)),
+                target: self
+            )
+            item.state = selected.contains(device.addressString) ? .on : .off
+            item.isEnabled = enabled
+            menu.addItem(item)
+        }
+
+        if !enabled {
+            menu.addItem(.separator())
+            let hint = NSMenuItem(
+                title: "Enable “Disconnect selected devices on sleep” to choose",
+                action: nil, keyEquivalent: ""
+            )
+            hint.isEnabled = false
+            menu.addItem(hint)
+        }
     }
 
     // MARK: Preferences
 
     private var restorePreviousStateOnWake: Bool {
         return UserDefaults.standard.bool(forKey: restorePreviousStateKey)
+    }
+
+    private var disconnectDevicesOnSleep: Bool {
+        return UserDefaults.standard.bool(forKey: disconnectDevicesOnSleepKey)
+    }
+
+    private var devicesToDisconnect: [String] {
+        return UserDefaults.standard.array(forKey: devicesToDisconnectKey) as? [String] ?? []
     }
 
     private var hideIcon: Bool {
@@ -166,6 +363,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // disable it from the menu.
         UserDefaults.standard.register(defaults: [
             restorePreviousStateKey: true,
+            disconnectDevicesOnSleepKey: false,
             hideIconKey: false
         ])
     }
@@ -204,8 +402,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         restorePreviousStateMenuItem?.state = state
     }
 
+    private func setDisconnectSelectedDevicesMenuState() {
+        let state = disconnectDevicesOnSleep ? NSControl.StateValue.on : NSControl.StateValue.off
+        disconnectSelectedDevicesMenuItem?.state = state
+    }
+
     private func setHideIconMenuState() {
         let state = hideIcon ? NSControl.StateValue.on : NSControl.StateValue.off
         hideIconMenuItem?.state = state
+    }
+}
+
+/// An `NSMenuItem` that remembers the Bluetooth address of the device it
+/// represents, so the click handler can identify the device without having
+/// to re-resolve it by title.
+class BluetoothDeviceMenuItem: NSMenuItem {
+    let deviceAddressString: String
+
+    init(device: IOBluetoothDevice, action: Selector?, target: AnyObject?) {
+        self.deviceAddressString = device.addressString
+        super.init(title: AppDelegate.displayName(for: device), action: action, keyEquivalent: "")
+        self.target = target
+    }
+
+    required init(coder: NSCoder) {
+        self.deviceAddressString = (coder.decodeObject(forKey: "deviceAddressString") as? String) ?? ""
+        super.init(coder: coder)
+    }
+
+    override func encode(with coder: NSCoder) {
+        super.encode(with: coder)
+        coder.encode(deviceAddressString, forKey: "deviceAddressString")
     }
 }

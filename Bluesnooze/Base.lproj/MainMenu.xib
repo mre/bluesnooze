@@ -16,6 +16,8 @@
             <connections>
                 <outlet property="launchAtLoginMenuItem" destination="I9E-pI-lLm" id="DFX-bS-N3m"/>
                 <outlet property="restorePreviousStateMenuItem" destination="Rps-01-Wk1" id="Rps-02-Out"/>
+                <outlet property="disconnectSelectedDevicesMenuItem" destination="Dsd-01-Itm" id="Dsd-02-Out"/>
+                <outlet property="devicesSubmenuItem" destination="Dsm-01-Itm" id="Dsm-02-Out"/>
                 <outlet property="hideIconMenuItem" destination="Hid-01-Ico" id="Hid-02-Out"/>
                 <outlet property="statusMenu" destination="AEO-aA-1fp" id="ueI-UR-7ba"/>
             </connections>
@@ -35,6 +37,18 @@
                         <action selector="restorePreviousStateClicked:" target="Voe-Tx-rLC" id="Rps-03-Act"/>
                     </connections>
                 </menuItem>
+                <menuItem isSeparatorItem="YES" id="Dsd-00-Sep"/>
+                <menuItem title="Disconnect selected devices on sleep" id="Dsd-01-Itm" userLabel="Disconnect Selected Devices Menu Item">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <connections>
+                        <action selector="disconnectSelectedDevicesClicked:" target="Voe-Tx-rLC" id="Dsd-03-Act"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Selected devices" id="Dsm-01-Itm" userLabel="Devices Submenu Item">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <menu key="submenu" title="Selected devices" id="Dsm-03-Sub"/>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="Dsm-04-Sep"/>
                 <menuItem title="Hide icon (relaunch the app to show again)" id="Hid-01-Ico" userLabel="Hide Icon Menu Item">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>

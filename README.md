@@ -22,6 +22,10 @@ If you pair Bluetooth headphones or speakers with both your phone & Mac it can b
 
 With Bluesnooze the Bluetooth connection is switched off when your Mac sleeps, and switched on when your Mac wakes.
 
+Alternatively, you can choose **Disconnect selected devices on sleep** from the menu and pick specific paired devices (e.g. headphones or speakers) to disconnect on sleep. In this mode the Bluetooth controller stays powered on, so a Bluetooth keyboard or mouse can still wake your Mac. The selected devices are reconnected on wake (subject to the *Restore previous Bluetooth state on wake* setting — when that is on, only devices that were actually connected before sleep will be reconnected).
+
+> **Note:** only Bluetooth Classic devices are listed. BLE devices are excluded because the macOS APIs Bluesnooze uses to disconnect them are unreliable.
+
 ![Screenshot showing Bluesnooze in the status bar](images/screenshot.png)
 
 You might also want to check-out Whisper –  [the volume limiter for MacOS](https://apps.apple.com/gb/app/whisper-volume-limiter/id1438132944?mt=12).
@@ -41,13 +45,6 @@ You might also want to check-out Whisper –  [the volume limiter for MacOS](htt
 [download-latest]: https://github.com/odlp/bluesnooze/releases/latest
 
 ## FAQs
-
-### Can you add support for selectively disconnecting certain devices?
-
-Bluesnooze is a really simple app which toggles the Bluetooth power on/off.
-Disconnecting specific devices would require a complete rewrite, and I don't
-need this functionality or the complexity it brings. Please feel free to fork &
-experiment as you like ✌️
 
 ### How can I hide the Bluesnooze icon?
 

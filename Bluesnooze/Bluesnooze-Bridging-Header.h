@@ -1,6 +1,0 @@
-//
-//  Use this file to import your target's public headers that you would like to expose to Swift.
-//
-
-void IOBluetoothPreferenceSetControllerPowerState(int);
-int IOBluetoothPreferenceGetControllerPowerState(void);

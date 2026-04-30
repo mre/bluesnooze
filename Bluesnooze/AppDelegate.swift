@@ -11,6 +11,15 @@ import IOBluetooth
 import LaunchAtLogin
 import os.log
 
+// Private IOBluetooth APIs for toggling the controller power state.
+// Declared directly in Swift to avoid needing an Objective-C bridging
+// header for two C function symbols.
+@_silgen_name("IOBluetoothPreferenceGetControllerPowerState")
+func IOBluetoothPreferenceGetControllerPowerState() -> Int32
+
+@_silgen_name("IOBluetoothPreferenceSetControllerPowerState")
+func IOBluetoothPreferenceSetControllerPowerState(_ state: Int32)
+
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 

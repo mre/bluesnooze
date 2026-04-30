@@ -2,13 +2,13 @@
 
 # Bluesnooze
 
-> **Heads up:** This is a personal fork of
+> [!IMPORTANT]
+> This is a personal fork of
 > [odlp/bluesnooze](https://github.com/odlp/bluesnooze) that I keep
 > around for my own use. I am not a Swift developer, I do not plan to
-> maintain this for anyone else, and I am **not accepting pull
-> requests, feature requests, or bug reports**. If you want a
-> supported version, use
-> [the upstream](https://github.com/odlp/bluesnooze) or fork this
+> maintain this for anyone else, and I am not accepting pull requests,
+> feature requests, or bug reports. If you want a supported version,
+> use [the upstream](https://github.com/odlp/bluesnooze) or fork this
 > yourself.
 
 A small macOS menu bar app that disconnects Bluetooth on sleep so your

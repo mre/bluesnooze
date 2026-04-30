@@ -2,6 +2,8 @@
 
 # Bluesnooze
 
+![Screenshot of the Bluesnooze menu with the Selected devices submenu open](images/screenshot.png)
+
 > [!IMPORTANT]
 > This is a personal fork of
 > [odlp/bluesnooze](https://github.com/odlp/bluesnooze) that I keep

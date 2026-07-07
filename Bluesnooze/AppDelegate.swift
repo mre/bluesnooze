@@ -65,8 +65,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let previousDeviceStatesKey = "previousDeviceConnectionStates"
 
     private let wakeReconnectDelays: [TimeInterval] = [0, 0.5, 1.5, 3.0]
+    private let wakeDebounceInterval: TimeInterval = 2
     private let pendingReconnectTimeout: TimeInterval = 15
     private var wakeReconnectGeneration = 0
+    private var lastWakeHandledAt: Date?
     private var pendingReconnectDeadlines: [String: Date] = [:]
 
     // Distributed notification sent by a second launched instance to ask
@@ -205,6 +207,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func onPowerUp(note: NSNotification) {
+        if let lastWakeHandledAt = lastWakeHandledAt,
+            Date().timeIntervalSince(lastWakeHandledAt) < wakeDebounceInterval
+        {
+            os_log("Ignoring duplicate wake notification: %{public}@", log: log, note.name.rawValue)
+            return
+        }
+        lastWakeHandledAt = Date()
+
         if disconnectDevicesOnSleep {
             // Per-device mode: reconnect the devices we touched. If the user
             // also has "restore previous state" on, only reconnect those that

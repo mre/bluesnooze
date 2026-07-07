@@ -6,24 +6,17 @@
 //  Copyright © 2020 Oliver Peate. All rights reserved.
 //
 
+import Darwin
 import Foundation
 import IOBluetooth
-import os.log
-
-// Private IOBluetooth APIs for toggling the controller power state.
-// Declared directly in Swift to avoid needing an Objective-C bridging
-// header for two C function symbols.
-@_silgen_name("IOBluetoothPreferenceGetControllerPowerState")
-func IOBluetoothPreferenceGetControllerPowerState() -> Int32
-
-@_silgen_name("IOBluetoothPreferenceSetControllerPowerState")
-func IOBluetoothPreferenceSetControllerPowerState(_ state: Int32)
+import OSLog
 
 final class BluetoothController: NSObject {
-    private let log = OSLog(
+    private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.oliverpeate.Bluesnooze",
         category: "bluetooth"
     )
+    private let powerAPI = BluetoothPowerAPI()
 
     private let wakeReconnectDelays: [TimeInterval] = [0, 0.5, 1.5, 3.0]
     private let pendingReconnectTimeout: TimeInterval = 15
@@ -31,12 +24,12 @@ final class BluetoothController: NSObject {
     private var pendingReconnectDeadlines: [String: Date] = [:]
 
     var isPoweredOn: Bool {
-        IOBluetoothPreferenceGetControllerPowerState() != 0
+        powerAPI.getPowerState() != 0
     }
 
     func setPower(_ powerOn: Bool) {
-        os_log("Setting Bluetooth controller power: %{bool}d", log: log, powerOn)
-        IOBluetoothPreferenceSetControllerPowerState(powerOn ? 1 : 0)
+        logger.log("Setting Bluetooth controller power: \(powerOn, privacy: .public)")
+        powerAPI.setPowerState(powerOn ? 1 : 0)
     }
 
     /// Returns paired Bluetooth Classic devices.
@@ -56,10 +49,9 @@ final class BluetoothController: NSObject {
 
     func disconnect(_ device: IOBluetoothDevice) {
         guard device.isConnected() else { return }
-        let status = device.closeConnection()
-        os_log(
-            "Disconnect %{public}@: success=%{bool}d",
-            log: log, device.nameOrAddress ?? device.addressString, status == kIOReturnSuccess)
+        let name = device.nameOrAddress ?? device.addressString ?? "Unknown device"
+        let success = device.closeConnection() == kIOReturnSuccess
+        logger.log("Disconnect \(name, privacy: .public): success=\(success, privacy: .public)")
     }
 
     func scheduleReconnect(addresses: [String]) {
@@ -82,9 +74,10 @@ final class BluetoothController: NSObject {
                     self.connect(addressString: address)
                 }
 
-                os_log(
-                    "Wake reconnect attempt after %.1fs: %d remaining, %d pending",
-                    log: self.log, delay, remaining.count, self.pendingReconnectDeadlines.count)
+                let pendingCount = self.pendingReconnectDeadlines.count
+                self.logger.log(
+                    "Wake reconnect attempt after \(delay, privacy: .public)s: \(remaining.count, privacy: .public) remaining, \(pendingCount, privacy: .public) pending"
+                )
                 if remaining.isEmpty {
                     self.wakeReconnectGeneration += 1
                 }
@@ -102,7 +95,7 @@ final class BluetoothController: NSObject {
         let interval = min(retryInterval, timeout)
         while devices.contains(where: { $0.isConnected() }) {
             if Date() >= deadline {
-                os_log("Timed out waiting for devices to disconnect", log: log, type: .info)
+                logger.info("Timed out waiting for devices to disconnect")
                 return
             }
             Thread.sleep(forTimeInterval: interval)
@@ -134,10 +127,11 @@ final class BluetoothController: NSObject {
 
         pendingReconnectDeadlines[addressString] = Date().addingTimeInterval(
             pendingReconnectTimeout)
+        let name = device.nameOrAddress ?? addressString
         let status = device.openConnection(self)
-        os_log(
-            "Start async connect %{public}@: success=%{bool}d",
-            log: log, device.nameOrAddress ?? addressString, status == kIOReturnSuccess)
+        let success = status == kIOReturnSuccess
+        logger.log(
+            "Start async connect \(name, privacy: .public): success=\(success, privacy: .public)")
 
         if status != kIOReturnSuccess {
             pendingReconnectDeadlines.removeValue(forKey: addressString)
@@ -146,9 +140,10 @@ final class BluetoothController: NSObject {
 
     @objc func connectionComplete(_ device: IOBluetoothDevice, status: IOReturn) {
         pendingReconnectDeadlines.removeValue(forKey: device.addressString)
-        os_log(
-            "Connection complete %{public}@: success=%{bool}d",
-            log: log, device.nameOrAddress ?? device.addressString, status == kIOReturnSuccess)
+        let name = device.nameOrAddress ?? device.addressString ?? "Unknown device"
+        let success = status == kIOReturnSuccess
+        logger.log(
+            "Connection complete \(name, privacy: .public): success=\(success, privacy: .public)")
     }
 
     private func isReconnectPending(_ addressString: String) -> Bool {
@@ -158,5 +153,53 @@ final class BluetoothController: NSObject {
         }
         pendingReconnectDeadlines.removeValue(forKey: addressString)
         return false
+    }
+}
+
+private final class BluetoothPowerAPI {
+    private typealias GetPowerState = @convention(c) () -> Int32
+    private typealias SetPowerState = @convention(c) (Int32) -> Void
+
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.oliverpeate.Bluesnooze",
+        category: "bluetooth"
+    )
+    private let handle: UnsafeMutableRawPointer?
+    private let getControllerPowerState: GetPowerState?
+    private let setControllerPowerState: SetPowerState?
+
+    init() {
+        handle = dlopen("/System/Library/Frameworks/IOBluetooth.framework/IOBluetooth", RTLD_NOW)
+        getControllerPowerState = Self.load(
+            "IOBluetoothPreferenceGetControllerPowerState", from: handle)
+        setControllerPowerState = Self.load(
+            "IOBluetoothPreferenceSetControllerPowerState", from: handle)
+    }
+
+    deinit {
+        if let handle {
+            dlclose(handle)
+        }
+    }
+
+    func getPowerState() -> Int32 {
+        guard let getControllerPowerState else {
+            logger.error("Could not resolve IOBluetoothPreferenceGetControllerPowerState")
+            return 0
+        }
+        return getControllerPowerState()
+    }
+
+    func setPowerState(_ state: Int32) {
+        guard let setControllerPowerState else {
+            logger.error("Could not resolve IOBluetoothPreferenceSetControllerPowerState")
+            return
+        }
+        setControllerPowerState(state)
+    }
+
+    private static func load<T>(_ symbolName: String, from handle: UnsafeMutableRawPointer?) -> T? {
+        guard let handle, let symbol = dlsym(handle, symbolName) else { return nil }
+        return unsafeBitCast(symbol, to: T.self)
     }
 }

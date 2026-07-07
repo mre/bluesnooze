@@ -7,11 +7,10 @@
 //
 
 import Cocoa
-import IOBluetooth
 import LaunchAtLogin
-import os.log
+import OSLog
 
-@NSApplicationMain
+@main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @IBOutlet weak var statusMenu: NSMenu!
@@ -21,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @IBOutlet weak var devicesSubmenuItem: NSMenuItem!
     @IBOutlet weak var hideIconMenuItem: NSMenuItem!
 
-    private let log = OSLog(
+    private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.oliverpeate.Bluesnooze",
         category: "app"
     )
@@ -138,7 +137,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let lastWakeHandledAt = lastWakeHandledAt,
             Date().timeIntervalSince(lastWakeHandledAt) < wakeDebounceInterval
         {
-            os_log("Ignoring duplicate wake notification: %{public}@", log: log, note.name.rawValue)
+            let notificationName = note.name.rawValue
+            logger.log(
+                "Ignoring duplicate wake notification: \(notificationName, privacy: .public)")
             return
         }
         lastWakeHandledAt = Date()

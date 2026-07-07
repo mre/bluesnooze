@@ -69,6 +69,23 @@ The original signed release is available at
 [odlp/bluesnooze](https://github.com/odlp/bluesnooze) or via
 `brew install bluesnooze`.
 
+## Development
+
+Install local tools with Homebrew:
+
+```sh
+make bootstrap
+```
+
+Run linting and a local unsigned build:
+
+```sh
+make lint
+make build
+```
+
+CI runs the same checks with `make ci` on macOS.
+
 ## Changes in this fork
 
 - Added a per-device disconnect mode, adapted from
@@ -88,11 +105,12 @@ The original signed release is available at
   with
   [LaunchAtLogin-Modern](https://github.com/sindresorhus/LaunchAtLogin-Modern).
   The legacy package was archived in September 2025.
-- Adopted `os_log` for diagnostics. View logs with:
+- Adopted Swift's `Logger` API for diagnostics. View logs with:
   ```sh
   log stream --predicate 'process == "Bluesnooze"'
   log show --process Bluesnooze --info --last 1h
   ```
+- Added SwiftLint locally and in CI.
 - Bumped the minimum macOS version to 13.
 
 ## Migrating from upstream

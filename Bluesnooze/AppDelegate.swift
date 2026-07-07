@@ -135,11 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func onPowerUp(note: NSNotification) {
         if let lastWakeHandledAt = lastWakeHandledAt,
-            Date().timeIntervalSince(lastWakeHandledAt) < wakeDebounceInterval
-        {
+            Date().timeIntervalSince(lastWakeHandledAt) < wakeDebounceInterval {
             let notificationName = note.name.rawValue
-            logger.log(
-                "Ignoring duplicate wake notification: \(notificationName, privacy: .public)")
+            logger.log("Ignoring duplicate wake notification: \(notificationName, privacy: .public)")
             return
         }
         lastWakeHandledAt = Date()

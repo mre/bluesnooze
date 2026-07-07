@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint-and-build:
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew bundle
+
+      - name: Resolve packages
+        run: xcodebuild -project Bluesnooze.xcodeproj -scheme Bluesnooze -resolvePackageDependencies
+
+      - name: Lint
+        run: make lint
+
+      - name: Build
+        run: make build

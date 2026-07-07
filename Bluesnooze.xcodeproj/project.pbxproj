@@ -78,7 +78,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4F229AC8243CC29600B1784C /* Build configuration list for PBXNativeTarget "Bluesnooze" */;
 			buildPhases = (
-				4F707EAE243DC8DA00CBAE8A /* ShellScript */,
+				4F707EAE243DC8DA00CBAE8A /* SwiftLint */,
 				4F229AB6243CC29500B1784C /* Sources */,
 				4F229AB7243CC29500B1784C /* Frameworks */,
 				4F229AB8243CC29500B1784C /* Resources */,
@@ -146,7 +146,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		4F707EAE243DC8DA00CBAE8A /* ShellScript */ = {
+		4F707EAE243DC8DA00CBAE8A /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -156,13 +156,14 @@
 			);
 			inputPaths = (
 			);
+			name = SwiftLint;
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export PATH=\"$PATH:/opt/homebrew/bin\"\n\nif which swiftlint >/dev/null; then\n  swiftlint\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
+			shellScript = "export PATH=\"$PATH:/opt/homebrew/bin\"\n\nif command -v swiftlint >/dev/null; then\n  swiftlint lint --strict\nelse\n  echo \"warning: SwiftLint not installed. Run 'make bootstrap' to install local tooling.\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

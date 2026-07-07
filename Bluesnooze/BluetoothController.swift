@@ -76,7 +76,7 @@ final class BluetoothController: NSObject {
 
                 let pendingCount = self.pendingReconnectDeadlines.count
                 self.logger.log(
-                    "Wake reconnect attempt after \(delay, privacy: .public)s: \(remaining.count, privacy: .public) remaining, \(pendingCount, privacy: .public) pending"
+                    "Reconnect: r=\(remaining.count, privacy: .public) p=\(pendingCount, privacy: .public)"
                 )
                 if remaining.isEmpty {
                     self.wakeReconnectGeneration += 1
@@ -112,8 +112,7 @@ final class BluetoothController: NSObject {
         let addressKey = address.lowercased().filter(\.isHexDigit)
         if let name = device.name?.trimmingCharacters(in: .whitespaces),
             !name.isEmpty,
-            name.lowercased().filter(\.isHexDigit) != addressKey
-        {
+            name.lowercased().filter(\.isHexDigit) != addressKey {
             return name
         }
         return "Unnamed device (\(address))"

@@ -1,2 +1,22 @@
+included:
+  - Bluesnooze
+
 excluded:
-  - Carthage
+  - build
+  - .build
+  - DerivedData
+
+line_length:
+  warning: 120
+  error: 140
+  ignores_comments: true
+  ignores_urls: true
+
+identifier_name:
+  min_length:
+    warning: 2
+  excluded:
+    - id
+
+trailing_comma:
+  mandatory_comma: true

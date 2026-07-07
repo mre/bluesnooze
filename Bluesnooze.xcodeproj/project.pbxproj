@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		4F229ABE243CC29500B1784C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F229ABD243CC29500B1784C /* AppDelegate.swift */; };
+		4F3A00012CC0000100000001 /* BluetoothController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3A00002CC0000100000001 /* BluetoothController.swift */; };
+		4F3A00032CC0000100000001 /* BluetoothDeviceMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3A00022CC0000100000001 /* BluetoothDeviceMenuItem.swift */; };
+		4F3A00052CC0000100000001 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3A00042CC0000100000001 /* Preferences.swift */; };
 		4F229AC0243CC29600B1784C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4F229ABF243CC29600B1784C /* Assets.xcassets */; };
 		4F229AC3243CC29600B1784C /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 4F229AC1243CC29600B1784C /* MainMenu.xib */; };
 		4F1A2B3C2C0000010000A001 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 4F1A2B3B2C0000010000A001 /* LaunchAtLogin */; };
@@ -16,6 +19,9 @@
 /* Begin PBXFileReference section */
 		4F229ABA243CC29500B1784C /* Bluesnooze.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bluesnooze.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F229ABD243CC29500B1784C /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		4F3A00002CC0000100000001 /* BluetoothController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothController.swift; sourceTree = "<group>"; };
+		4F3A00022CC0000100000001 /* BluetoothDeviceMenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothDeviceMenuItem.swift; sourceTree = "<group>"; };
+		4F3A00042CC0000100000001 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		4F229ABF243CC29600B1784C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4F229AC2243CC29600B1784C /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		4F229AC4243CC29600B1784C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -54,6 +60,9 @@
 			isa = PBXGroup;
 			children = (
 				4F229ABD243CC29500B1784C /* AppDelegate.swift */,
+				4F3A00002CC0000100000001 /* BluetoothController.swift */,
+				4F3A00022CC0000100000001 /* BluetoothDeviceMenuItem.swift */,
+				4F3A00042CC0000100000001 /* Preferences.swift */,
 				4F229ABF243CC29600B1784C /* Assets.xcassets */,
 				4F229AC1243CC29600B1784C /* MainMenu.xib */,
 				4F229AC4243CC29600B1784C /* Info.plist */,
@@ -163,6 +172,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				4F229ABE243CC29500B1784C /* AppDelegate.swift in Sources */,
+				4F3A00012CC0000100000001 /* BluetoothController.swift in Sources */,
+				4F3A00032CC0000100000001 /* BluetoothDeviceMenuItem.swift in Sources */,
+				4F3A00052CC0000100000001 /* Preferences.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

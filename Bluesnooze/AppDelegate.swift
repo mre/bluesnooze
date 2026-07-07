@@ -64,6 +64,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // as [addressString: Bool].
     private let previousDeviceStatesKey = "previousDeviceConnectionStates"
 
+    private let wakeReconnectDelays: [TimeInterval] = [0, 0.5, 1.5, 3.0]
+    private var wakeReconnectGeneration = 0
+
     // Distributed notification sent by a second launched instance to ask
     // the already-running instance to re-show its menu bar icon.
     private let showIconNotificationName = Notification.Name("com.oliverpeate.Bluesnooze.showIcon")
@@ -206,11 +209,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let previousStates = (UserDefaults.standard.dictionary(forKey: previousDeviceStatesKey)
                                   as? [String: Bool]) ?? [:]
             let restore = restorePreviousStateOnWake
-            for address in devicesToDisconnect {
-                if !restore || (previousStates[address] ?? false) {
-                    connect(addressString: address)
-                }
-            }
+            let addresses = devicesToDisconnect.filter { !restore || (previousStates[$0] ?? false) }
+            scheduleReconnect(addresses: addresses)
             return
         }
 
@@ -272,6 +272,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let status = device.openConnection()
         os_log("Connect %{public}@: success=%{bool}d",
                log: log, device.nameOrAddress ?? addressString, status == kIOReturnSuccess)
+    }
+
+    private func scheduleReconnect(addresses: [String]) {
+        guard !addresses.isEmpty else { return }
+        wakeReconnectGeneration += 1
+        let generation = wakeReconnectGeneration
+
+        for delay in wakeReconnectDelays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, self.wakeReconnectGeneration == generation else { return }
+
+                var remaining: [String] = []
+                for address in addresses {
+                    guard let device = IOBluetoothDevice(addressString: address) else { continue }
+                    if device.isConnected() {
+                        continue
+                    }
+
+                    remaining.append(address)
+                    self.connect(addressString: address)
+                }
+
+                os_log("Wake reconnect attempt after %.1fs: %d remaining",
+                       log: self.log, delay, remaining.count)
+                if remaining.isEmpty {
+                    self.wakeReconnectGeneration += 1
+                }
+            }
+        }
     }
 
     /// Human-readable name for a Bluetooth device, or an explicit

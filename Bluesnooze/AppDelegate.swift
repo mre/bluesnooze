@@ -65,7 +65,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let previousDeviceStatesKey = "previousDeviceConnectionStates"
 
     private let wakeReconnectDelays: [TimeInterval] = [0, 0.5, 1.5, 3.0]
+    private let pendingReconnectTimeout: TimeInterval = 15
     private var wakeReconnectGeneration = 0
+    private var pendingReconnectDeadlines: [String: Date] = [:]
 
     // Distributed notification sent by a second launched instance to ask
     // the already-running instance to re-show its menu bar icon.
@@ -154,9 +156,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSWorkspace.willSleepNotification: #selector(onPowerDown(note:)),
             NSWorkspace.willPowerOffNotification: #selector(onPowerDown(note:)),
             NSWorkspace.didWakeNotification: #selector(onPowerUp(note:)),
-            NSWorkspace.screensDidWakeNotification: #selector(onPowerUp(note:))
+            NSWorkspace.screensDidWakeNotification: #selector(onPowerUp(note:)),
         ].forEach { notification, sel in
-            NSWorkspace.shared.notificationCenter.addObserver(self, selector: sel, name: notification, object: nil)
+            NSWorkspace.shared.notificationCenter.addObserver(
+                self, selector: sel, name: notification, object: nil)
         }
 
         // Listen for "please re-show your icon" requests from a second
@@ -206,8 +209,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // Per-device mode: reconnect the devices we touched. If the user
             // also has "restore previous state" on, only reconnect those that
             // were actually connected before sleep.
-            let previousStates = (UserDefaults.standard.dictionary(forKey: previousDeviceStatesKey)
-                                  as? [String: Bool]) ?? [:]
+            let previousStates =
+                (UserDefaults.standard.dictionary(forKey: previousDeviceStatesKey)
+                    as? [String: Bool]) ?? [:]
             let restore = restorePreviousStateOnWake
             let addresses = devicesToDisconnect.filter { !restore || (previousStates[$0] ?? false) }
             scheduleReconnect(addresses: addresses)
@@ -218,7 +222,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // If we have no recorded previous state (first run, or app was
             // installed while asleep), default to leaving Bluetooth off rather
             // than overriding the user's preference.
-            let shouldPowerOn = UserDefaults.standard.object(forKey: previousPowerStateKey) as? Bool ?? false
+            let shouldPowerOn =
+                UserDefaults.standard.object(forKey: previousPowerStateKey) as? Bool ?? false
             if shouldPowerOn {
                 setBluetooth(powerOn: true)
             }
@@ -255,23 +260,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// devices don't expose via this API.
     private func pairedClassicDevices() -> [IOBluetoothDevice] {
         let all = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
-        let pnpUUID = IOBluetoothSDPUUID(uuid32: kBluetoothSDPUUID16ServiceClassPnPInformation.rawValue)
+        let pnpUUID = IOBluetoothSDPUUID(
+            uuid32: kBluetoothSDPUUID16ServiceClassPnPInformation.rawValue)
         return all.filter { $0.getServiceRecord(for: pnpUUID) != nil }
     }
 
     private func disconnect(_ device: IOBluetoothDevice) {
         guard device.isConnected() else { return }
         let status = device.closeConnection()
-        os_log("Disconnect %{public}@: success=%{bool}d",
-               log: log, device.nameOrAddress ?? device.addressString, status == kIOReturnSuccess)
+        os_log(
+            "Disconnect %{public}@: success=%{bool}d",
+            log: log, device.nameOrAddress ?? device.addressString, status == kIOReturnSuccess)
     }
 
     private func connect(addressString: String) {
         guard let device = IOBluetoothDevice(addressString: addressString) else { return }
-        guard device.isPaired(), !device.isConnected() else { return }
-        let status = device.openConnection()
-        os_log("Connect %{public}@: success=%{bool}d",
-               log: log, device.nameOrAddress ?? addressString, status == kIOReturnSuccess)
+        guard device.isPaired(), !device.isConnected(), !isReconnectPending(addressString) else {
+            return
+        }
+
+        pendingReconnectDeadlines[addressString] = Date().addingTimeInterval(
+            pendingReconnectTimeout)
+        let status = device.openConnection(self)
+        os_log(
+            "Start async connect %{public}@: success=%{bool}d",
+            log: log, device.nameOrAddress ?? addressString, status == kIOReturnSuccess)
+
+        if status != kIOReturnSuccess {
+            pendingReconnectDeadlines.removeValue(forKey: addressString)
+        }
+    }
+
+    @objc func connectionComplete(_ device: IOBluetoothDevice, status: IOReturn) {
+        pendingReconnectDeadlines.removeValue(forKey: device.addressString)
+        os_log(
+            "Connection complete %{public}@: success=%{bool}d",
+            log: log, device.nameOrAddress ?? device.addressString, status == kIOReturnSuccess)
+    }
+
+    private func isReconnectPending(_ addressString: String) -> Bool {
+        guard let deadline = pendingReconnectDeadlines[addressString] else { return false }
+        if Date() < deadline {
+            return true
+        }
+        pendingReconnectDeadlines.removeValue(forKey: addressString)
+        return false
     }
 
     private func scheduleReconnect(addresses: [String]) {
@@ -283,19 +316,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self = self, self.wakeReconnectGeneration == generation else { return }
 
-                var remaining: [String] = []
-                for address in addresses {
-                    guard let device = IOBluetoothDevice(addressString: address) else { continue }
-                    if device.isConnected() {
-                        continue
+                let remaining = addresses.filter { address in
+                    guard let device = IOBluetoothDevice(addressString: address) else {
+                        return false
                     }
+                    return !device.isConnected()
+                }
 
-                    remaining.append(address)
+                for address in remaining {
                     self.connect(addressString: address)
                 }
 
-                os_log("Wake reconnect attempt after %.1fs: %d remaining",
-                       log: self.log, delay, remaining.count)
+                os_log(
+                    "Wake reconnect attempt after %.1fs: %d remaining, %d pending",
+                    log: self.log, delay, remaining.count, self.pendingReconnectDeadlines.count)
                 if remaining.isEmpty {
                     self.wakeReconnectGeneration += 1
                 }
@@ -312,16 +346,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let address = device.addressString ?? "unknown address"
         let addressKey = address.lowercased().filter(\.isHexDigit)
         if let name = device.name?.trimmingCharacters(in: .whitespaces),
-           !name.isEmpty,
-           name.lowercased().filter(\.isHexDigit) != addressKey {
+            !name.isEmpty,
+            name.lowercased().filter(\.isHexDigit) != addressKey
+        {
             return name
         }
         return "Unnamed device (\(address))"
     }
 
-    private func waitForDisconnect(devices: [IOBluetoothDevice],
-                                   retryInterval: TimeInterval,
-                                   timeout: TimeInterval) {
+    private func waitForDisconnect(
+        devices: [IOBluetoothDevice],
+        retryInterval: TimeInterval,
+        timeout: TimeInterval
+    ) {
         guard !devices.isEmpty else { return }
         let deadline = Date().addingTimeInterval(timeout)
         let interval = min(retryInterval, timeout)
@@ -354,7 +391,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let selected = Set(devicesToDisconnect)
         let enabled = disconnectDevicesOnSleep
-        for device in devices.sorted(by: { Self.displayName(for: $0) < Self.displayName(for: $1) }) {
+        for device in devices.sorted(by: { Self.displayName(for: $0) < Self.displayName(for: $1) })
+        {
             let item = BluetoothDeviceMenuItem(
                 device: device,
                 action: #selector(deviceMenuItemClicked(_:)),
@@ -402,7 +440,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.register(defaults: [
             restorePreviousStateKey: true,
             disconnectDevicesOnSleepKey: false,
-            hideIconKey: false
+            hideIconKey: false,
         ])
     }
 
@@ -464,7 +502,8 @@ class BluetoothDeviceMenuItem: NSMenuItem {
     }
 
     required init(coder: NSCoder) {
-        self.deviceAddressString = (coder.decodeObject(forKey: "deviceAddressString") as? String) ?? ""
+        self.deviceAddressString =
+            (coder.decodeObject(forKey: "deviceAddressString") as? String) ?? ""
         super.init(coder: coder)
     }
 

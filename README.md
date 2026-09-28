@@ -37,6 +37,7 @@ You might also want to check-out Whisper –  [the volume limiter for MacOS](htt
 
 - Please note this app is not compatible with the “Allow your Apple Watch to unlock your Mac” feature.
 - Unfortunately this app can't be distributed via the App Store because it uses a private API to switch Bluetooth on/off (but the release version is notarized by Apple).
+- Once clicked at the config option button "Hide icon" from the UI, there is no way to make it visible again other than launching the command in the section " How can I restore the Bluesnooze icon?" below.
 
 [download-latest]: https://github.com/odlp/bluesnooze/releases/latest
 

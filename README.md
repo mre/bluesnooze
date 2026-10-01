@@ -47,8 +47,10 @@ things I needed for daily use:
 
 - **Hide the menu bar icon**
 
-  The icon can be hidden from the menu. Launch Bluesnooze again from
-  Finder or Spotlight to show it again.
+  The icon can be hidden from the menu. In the original app, restoring
+  it required a `defaults` command. In this fork, just launch
+  Bluesnooze again from Finder, Spotlight, Raycast, or a similar app
+  launcher. The already-running instance will show the icon again.
 
 - **Faster and safer reconnect handling**
 
@@ -182,9 +184,11 @@ defaults write com.oliverpeate.Bluesnooze disconnectDevicesOnSleep -bool true
 defaults write com.oliverpeate.Bluesnooze devicesToDisconnectOnSleep \
     -array "12-34-4a-f0-19-02" "00-1d-43-aa-bb-cc"
 
-# Hide / show the menu bar icon
+# Hide / show the menu bar icon from the terminal
 defaults write com.oliverpeate.Bluesnooze hideIcon -bool true && killall Bluesnooze
 defaults delete com.oliverpeate.Bluesnooze hideIcon && killall Bluesnooze
+
+# You can also show the icon again by launching Bluesnooze normally.
 ```
 
 ## Credits

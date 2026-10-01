@@ -15,6 +15,7 @@ enum Preferences {
     private static let disconnectDevicesOnSleepKey = "disconnectDevicesOnSleep"
     private static let devicesToDisconnectKey = "devicesToDisconnectOnSleep"
     private static let previousDeviceStatesKey = "previousDeviceConnectionStates"
+    private static let appID = "com.oliverpeate.Bluesnooze" as CFString
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -36,7 +37,16 @@ enum Preferences {
 
     static var hideIcon: Bool {
         get { UserDefaults.standard.bool(forKey: hideIconKey) }
-        set { UserDefaults.standard.set(newValue, forKey: hideIconKey) }
+        set {
+            if newValue {
+                CFPreferencesSetAppValue(hideIconKey as CFString, kCFBooleanTrue, appID)
+                UserDefaults.standard.set(true, forKey: hideIconKey)
+            } else {
+                CFPreferencesSetAppValue(hideIconKey as CFString, nil, appID)
+                UserDefaults.standard.removeObject(forKey: hideIconKey)
+            }
+            CFPreferencesAppSynchronize(appID)
+        }
     }
 
     static var disconnectDevicesOnSleep: Bool {

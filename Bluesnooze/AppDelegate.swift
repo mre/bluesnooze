@@ -6,6 +6,7 @@
 //  Copyright © 2020 Oliver Peate. All rights reserved.
 //
 
+import Carbon
 import Cocoa
 import LaunchAtLogin
 import OSLog
@@ -26,7 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     )
     private let bluetooth = BluetoothController()
     private let wakeDebounceInterval: TimeInterval = 2
-    private let showIconNotificationName = Notification.Name("com.oliverpeate.Bluesnooze.showIcon")
 
     private var statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var lastWakeHandledAt: Date?
@@ -34,15 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         Preferences.registerDefaults()
 
-        if isAnotherInstanceRunning() {
-            Preferences.hideIcon = false
-            DistributedNotificationCenter.default().postNotificationName(
-                showIconNotificationName, object: nil, deliverImmediately: true
-            )
-            NSApplication.shared.terminate(self)
-            return
-        }
-
+        setupReopenHandler()
         initStatusItem()
         setLaunchAtLoginState()
         setRestorePreviousStateMenuState()
@@ -55,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !Preferences.restorePreviousStateOnWake && !Preferences.disconnectDevicesOnSleep {
             bluetooth.setPower(true)
         }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showStatusItem()
+        return true
     }
 
     // MARK: Click handlers
@@ -105,13 +102,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSWorkspace.shared.notificationCenter.addObserver(
                 self, selector: sel, name: notification, object: nil)
         }
-
-        DistributedNotificationCenter.default().addObserver(
-            self,
-            selector: #selector(onShowIconRequested(note:)),
-            name: showIconNotificationName,
-            object: nil
-        )
     }
 
     @objc private func onPowerDown(note: NSNotification) {
@@ -160,12 +150,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func onShowIconRequested(note: NSNotification) {
-        Preferences.hideIcon = false
-        NSStatusBar.system.removeStatusItem(statusItem)
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        initStatusItem()
-        setHideIconMenuState()
+    @objc private func onReopenAppleEvent(
+        _ event: NSAppleEventDescriptor,
+        withReplyEvent replyEvent: NSAppleEventDescriptor
+    ) {
+        logger.log("Handling reopen event")
+        showStatusItem()
     }
 
     // MARK: Devices submenu
@@ -214,11 +204,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: UI state
 
+    private func setupReopenHandler() {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(onReopenAppleEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kCoreEventClass),
+            andEventID: AEEventID(kAEReopenApplication)
+        )
+    }
+
     private func initStatusItem() {
         if Preferences.hideIcon {
             return
         }
 
+        configureStatusItem()
+    }
+
+    private func showStatusItem() {
+        Preferences.hideIcon = false
+        NSStatusBar.system.removeStatusItem(statusItem)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        configureStatusItem()
+        setHideIconMenuState()
+    }
+
+    private func configureStatusItem() {
         if let icon = NSImage(named: "bluesnooze") {
             icon.isTemplate = true
             statusItem.button?.image = icon
@@ -245,11 +256,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hideIconMenuItem?.state = Preferences.hideIcon ? .on : .off
     }
 
-    private func isAnotherInstanceRunning() -> Bool {
-        let myBundleID = Bundle.main.bundleIdentifier
-        let myPID = ProcessInfo.processInfo.processIdentifier
-        return NSWorkspace.shared.runningApplications.contains { app in
-            app.bundleIdentifier == myBundleID && app.processIdentifier != myPID
-        }
-    }
 }
